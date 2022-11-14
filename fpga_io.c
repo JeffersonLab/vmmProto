@@ -17,24 +17,39 @@
 typedef struct
 {
   int32_t  id;
+  int32_t  active;
   int32_t  sockfd_reg;
   int32_t  sockfd_event;
-  unsigned char ip_addr[16];
+  char     ip_addr[16];
   struct sockaddr_in sockaddr_reg;
   struct sockaddr_in sockaddr_event;
 } FPGAIO;
 
-#ifndef MAX_FPGAIO
-#define MAX_FPGAIO 12
+#ifndef FPGAIO_MAX
+#define FPGAIO_MAX 12
+#endif
+
+#ifndef FPGAIO_ACTIVE
+#define FPGAIO_ACTIVE 0x4A4C4142
 #endif
 
 /* Array of initialized FPGAIOs */
-FPGAIO pFPGAIO[MAX_FPGAIO];
+FPGAIO pFPGAIO[FPGAIO_MAX];
 
 /* Size of pFPGA array */
 int32_t nFPGAIO = 0;
 
+/* Keep this around for the original IO */
 FPGA_regs *pFPGA_regs = (FPGA_regs *) 0x0;
+
+int32_t fpga_io_debug = 1;
+#define FPGAIO_DBG(format, ...) if(fpga_io_debug==1){{printf("%s: ",__func__); printf(format, ## __VA_ARGS__);}}
+#define FPGAIO_ERR(format, ...) {fprintf(stderr, "%s: ERROR: ",__func__); fprintf(stderr, format, ## __VA_ARGS__);}
+
+#define CHECKID {							\
+    if((id != pFPGAIO[id].id) ||(pFPGAIO[id].active != FPGAIO_ACTIVE))	\
+      FPGAIO_ERR("Invalid FPGA ID (%d)\n", id);				\
+  }
 
 /**
  * @details initialize the fpga_io library with it's ip address and ports
@@ -47,26 +62,42 @@ int32_t
 fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port)
 {
   int32_t rval = -1;
-  int32_t id = 0;
+  int32_t id = nFPGAIO+1;
 
+  /* Check to be sure there's room in the array for a new one */
+  if(id >= FPGAIO_MAX)
+    {
+      FPGAIO_ERR("MAX FPGAIO (%d) already allocated.\n", FPGAIO_MAX);
+      return -1;
+    }
+
+  /* Populate the FPGAIO structure for this id */
   memset(&pFPGAIO[id], 0, sizeof(FPGAIO));
   memcpy(&pFPGAIO[id].ip_addr, ip, 16*sizeof(char));
 
-  /* serv_addr->sin_port = htons(port); */
   pFPGAIO[id].sockaddr_reg.sin_port = htons(reg_port);
   pFPGAIO[id].sockaddr_event.sin_port = htons(event_port);
+
   /* open register socket */
   rval = open_register_socket(id);
   if(rval != 0)
     {
-      printf("%s: Error opening register socket\n",
-	     __func__);
+      FPGAIO_ERR("opening register socket for FPGAIO %d at %s\n", id, ip);
+      memset(&pFPGAIO[id], 0, sizeof(FPGAIO));
       return -1;
     }
 
-  uint32_t val;
-  val = fpga_read32(id, &pFPGA_regs->Clk.BoardId);
-  printf("%s: BoardId = 0x%08X\n", __func__, val);
+  /* Connection active */
+  pFPGAIO[id].id     = id;
+  pFPGAIO[id].active = FPGAIO_ACTIVE;
+  nFPGAIO++;
+
+  if(fpga_io_debug == 1)
+    {
+      uint32_t val;
+      val = fpga_read32(id, &pFPGA_regs->Clk.BoardId);
+      FPGAIO_DBG("BoardId = 0x%08X\n", val);
+    }
 
   return rval;
 }
@@ -98,13 +129,13 @@ typedef struct
   int data[1];
 } read_rsp_struct;
 
-void
+int32_t
 fpga_write32(int32_t id, void *addr, int val)
 {
   write_struct ws;
 
-//printf("%s(0x%08X,0x%08X)", __func__, (int)((long)addr), val);
-//fflush(stdout);
+  CHECKID;
+  FPGAIO_DBG("(%d, 0x%08x, 0x%08x)\n", id, (uint32_t)(unsigned long)addr, val);
 
   ws.len = 16;
   ws.type = 4;
@@ -113,17 +144,22 @@ fpga_write32(int32_t id, void *addr, int val)
   ws.flags = 0;
   ws.vals[0] = val;
   write(pFPGAIO[id].sockfd_reg, &ws, sizeof(ws));
-//printf(" done.\n");
+
+  FPGAIO_DBG(" done.\n");
+
+  return 0;
 }
 
-unsigned int
+uint32_t
 fpga_read32(int32_t id, void *addr)
 {
   read_struct rs;
   read_rsp_struct rs_rsp;
   int len;
 
-//printf("%s(0x%08X)=", __func__, (int)((long)addr));
+  CHECKID;
+
+  FPGAIO_DBG("(%d, 0x%08x)\n", id, (uint32_t)(unsigned long)addr);
 
   rs.len = 12;
   rs.type = 3;
@@ -134,19 +170,23 @@ fpga_read32(int32_t id, void *addr)
 
   len = read(pFPGAIO[id].sockfd_reg, &rs_rsp, sizeof(rs_rsp));
   if(len != sizeof(rs_rsp))
-    printf("Error in %s: socket read failed...\n", __FUNCTION__);
+    FPGAIO_ERR("socket read failed\n");
 
-//printf("0x%08X\n", rs_rsp.data[0]);
+
+  FPGAIO_DBG(" = 0x%08x\n", rs_rsp.data[0]);
 
   return rs_rsp.data[0];
 }
 
-void
+int32_t
 fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf)
 {
   read_struct rs;
   read_rsp_struct rs_rsp;
   int32_t len, i;
+  CHECKID;
+
+  FPGAIO_DBG("(%d, %d, 0x%08x)\n", id, n, (uint32_t)(unsigned long)addr);
 
   for(i = 0; i < n; i++)
     {
@@ -162,20 +202,32 @@ fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf)
     {
       len = read(pFPGAIO[id].sockfd_reg, &rs_rsp, sizeof(rs_rsp));
       if(len != sizeof(rs_rsp))
-	printf("Error in %s: socket read failed...\n", __FUNCTION__);
+	FPGAIO_ERR("socket read failed\n");
 
       buf[i] = rs_rsp.data[0];
+
+      FPGAIO_DBG(" buf[%d] = 0x%08x\n", i, rs_rsp.data[0]);
     }
+
+  return 0;
 }
 
 int32_t
 open_register_socket(int32_t id)
 {
-  printf("%s: open socket\n", __func__);
+
+  if(pFPGAIO[id].active == FPGAIO_ACTIVE)
+    {
+      FPGAIO_ERR("FPGAIO %d for %s already active\n",
+		 id, pFPGAIO[id].ip_addr);
+      return -1;
+    }
+
+  FPGAIO_DBG("open socket for FPGAIO %d at %s\n", id, pFPGAIO[id].ip_addr);
 
   if((pFPGAIO[id].sockfd_reg = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-      printf("\n Error : Could not create socket \n");
+      FPGAIO_ERR("Could not create socket \n");
       return -1;
     }
 
@@ -183,39 +235,53 @@ open_register_socket(int32_t id)
 
   if(inet_pton(AF_INET, pFPGAIO[id].ip_addr, &pFPGAIO[id].sockaddr_reg.sin_addr) <= 0)
     {
-      printf("\n inet_pton error occured\n");
+      FPGAIO_ERR("inet_pton error occured\n");
       return -1;
     }
 
-  printf("%s: connect\n", __func__);
+  FPGAIO_DBG("connect\n");
   if(connect(pFPGAIO[id].sockfd_reg, (struct sockaddr *) &pFPGAIO[id].sockaddr_reg,
 	     sizeof(struct sockaddr_in)) < 0)
     {
-      printf("\n Error : Connect Failed \n");
+      FPGAIO_ERR("Connection Failed\n");
       return -1;
     }
 
-  printf("%s: write\n", __func__);
-  /* Send endian test header */
-  int n, val;
-  val = 0x12345678;
-  write(pFPGAIO[id].sockfd_reg, &val, 4);
+  if(fpga_io_debug==1)
+    {
+      FPGAIO_DBG("write\n");
+      /* Send endian test header */
+      int n, val;
+      val = 0x12345678;
+      write(pFPGAIO[id].sockfd_reg, &val, 4);
 
-  val = 0;
-  n = read(pFPGAIO[id].sockfd_reg, &val, 4);
-  printf("n = %d, val = 0x%08X\n", n, val);
+      val = 0;
+      n = read(pFPGAIO[id].sockfd_reg, &val, 4);
+      FPGAIO_DBG(" n = %d, val = 0x%08x\n", n, val);
+    }
+
+  /* Set connection as active */
+  pFPGAIO[id].active = FPGAIO_ACTIVE;
+
 
   return 0;
 }
 
-void
+int32_t
 close_register_socket(int32_t id)
 {
+  CHECKID;
+
+  FPGAIO_DBG(" close socket for FPGAIO %d at %s\n", id, pFPGAIO[id].ip_addr);
+
   if(pFPGAIO[id].sockfd_reg)
     {
       close(pFPGAIO[id].sockfd_reg);
       pFPGAIO[id].sockfd_reg = 0;
+      pFPGAIO[id].active     = 0;
     }
+
+  return 0;
 }
 
 
@@ -223,25 +289,34 @@ close_register_socket(int32_t id)
 int32_t
 open_event_socket(int32_t id)
 {
+
+  /* See if the event socket is already open */
+  if(pFPGAIO[id].sockfd_event != 0)
+    {
+      FPGAIO_ERR("Socket for FPGAIO %d at %s already open\n", id, pFPGAIO[id].ip_addr);
+      return -1;
+    }
+
+  FPGAIO_DBG("open socket for FPGAIO %d at %s\n", id, pFPGAIO[id].ip_addr);
   if((pFPGAIO[id].sockfd_event = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-      printf("\n Error : Could not create socket \n");
+      FPGAIO_ERR("Could not create socket \n");
       return -1;
     }
 
   pFPGAIO[id].sockaddr_event.sin_family = AF_INET;
-  /* serv_addr->sin_port = htons(port); */
 
   if(inet_pton(AF_INET, pFPGAIO[id].ip_addr, &pFPGAIO[id].sockaddr_event.sin_addr) <= 0)
     {
-      printf("\n inet_pton error occured\n");
+      FPGAIO_ERR("inet_pton error occured\n");
       return -1;
     }
 
+  FPGAIO_DBG("connect\n");
   if(connect(pFPGAIO[id].sockfd_event, (struct sockaddr *) &pFPGAIO[id].sockaddr_event,
 	     sizeof(struct sockaddr_in)) < 0)
     {
-      printf("\n Error : Connect Failed \n");
+      FPGAIO_ERR("Connection Failed \n");
       return -1;
     }
 
