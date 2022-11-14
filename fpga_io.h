@@ -234,14 +234,15 @@ extern FPGA_regs *pFPGA_regs;
 #define FPGA_IP_ADDR          "192.168.0.20"
 #define FPGA_PORT             6102
 
-void fpga_init();
-void fpga_write32(void *addr, int val);
-unsigned int fpga_read32(void *addr);
-void fpga_read32_n(int n, void *addr, unsigned int *buf);
-void open_register_socket();
-void open_event_socket();
-void close_register_socket();
-void close_event_socket();
-int read_event_socket(int *buf, int nwords_max);
+int32_t fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port);
+
+void fpga_write32(int32_t id, void *addr, int val);
+uint32_t fpga_read32(int32_t id, void *addr);
+void fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf);
+int32_t open_register_socket(int32_t id);
+int32_t open_event_socket(int32_t id);
+void close_register_socket(int32_t id);
+void close_event_socket(int32_t id);
+int32_t read_event_socket(int32_t id, int *buf, int nwords_max);
 
 #endif

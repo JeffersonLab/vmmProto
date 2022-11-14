@@ -37,7 +37,7 @@ LIB_CODA	= -L${CODA_VME_LIB}
 
 endif
 
-CC			= gcc
+CC			= clang
 ifeq ($(ARCH),i686)
 CC			+= -m32
 endif
@@ -85,7 +85,7 @@ install: $(LIBS)
 %.d: %.c
 	@echo " DEP    $@"
 	@set -e; rm -f $@; \
-	$(CC) -MM -shared $(INCS) $< > $@.$$$$; \
+	$(CC) -MM $(INCS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
@@ -96,6 +96,6 @@ clean:
 	${Q}rm -f ${OBJ} ${LIBS} ${DEPS}
 
 echoarch:
-	@echo "Make for $(OS)-$(ARCH)"
+	@echo "Make for $(shell uname)-$(ARCH)"
 
 .PHONY: clean echoarch
