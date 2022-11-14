@@ -52,6 +52,9 @@ fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port)
   memset(&pFPGAIO[id], 0, sizeof(FPGAIO));
   memcpy(&pFPGAIO[id].ip_addr, ip, 16*sizeof(char));
 
+  /* serv_addr->sin_port = htons(port); */
+  pFPGAIO[id].sockaddr_reg.sin_port = htons(reg_port);
+  pFPGAIO[id].sockaddr_event.sin_port = htons(event_port);
   /* open register socket */
   rval = open_register_socket(id);
   if(rval != 0)
@@ -168,6 +171,7 @@ fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf)
 int32_t
 open_register_socket(int32_t id)
 {
+  printf("%s: open socket\n", __func__);
 
   if((pFPGAIO[id].sockfd_reg = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -176,14 +180,14 @@ open_register_socket(int32_t id)
     }
 
   pFPGAIO[id].sockaddr_reg.sin_family = AF_INET;
-  /* serv_addr->sin_port = htons(port); */
 
-  if(inet_pton(AF_INET, FPGA_IP_ADDR, &pFPGAIO[id].sockaddr_reg.sin_addr) <= 0)
+  if(inet_pton(AF_INET, pFPGAIO[id].ip_addr, &pFPGAIO[id].sockaddr_reg.sin_addr) <= 0)
     {
       printf("\n inet_pton error occured\n");
       return -1;
     }
 
+  printf("%s: connect\n", __func__);
   if(connect(pFPGAIO[id].sockfd_reg, (struct sockaddr *) &pFPGAIO[id].sockaddr_reg,
 	     sizeof(struct sockaddr_in)) < 0)
     {
@@ -191,6 +195,7 @@ open_register_socket(int32_t id)
       return -1;
     }
 
+  printf("%s: write\n", __func__);
   /* Send endian test header */
   int n, val;
   val = 0x12345678;
@@ -227,7 +232,7 @@ open_event_socket(int32_t id)
   pFPGAIO[id].sockaddr_event.sin_family = AF_INET;
   /* serv_addr->sin_port = htons(port); */
 
-  if(inet_pton(AF_INET, FPGA_IP_ADDR, &pFPGAIO[id].sockaddr_event.sin_addr) <= 0)
+  if(inet_pton(AF_INET, pFPGAIO[id].ip_addr, &pFPGAIO[id].sockaddr_event.sin_addr) <= 0)
     {
       printf("\n inet_pton error occured\n");
       return -1;

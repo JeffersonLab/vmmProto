@@ -37,7 +37,7 @@ LIB_CODA	= -L${CODA_VME_LIB}
 
 endif
 
-CC			= clang
+CC			= gcc
 ifeq ($(ARCH),i686)
 CC			+= -m32
 endif
