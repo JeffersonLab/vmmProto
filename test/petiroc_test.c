@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <cstring>
+#include <string.h>
 #include "fpga_io.h"
 
 #define SCALERS_PRINT             0

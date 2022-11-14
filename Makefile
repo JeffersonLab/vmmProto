@@ -1,40 +1,101 @@
+# Copyright 2022, Jefferson Science Associates, LLC.
+# Subject to the terms in the LICENSE file found in the top-level directory.
 #
-# File:
-#    Makefile
+#    Author:  Bryan Moffit
+#             moffit@jlab.org                   Jefferson Lab, MS-12B3
+#             Phone: (757) 269-5660             12000 Jefferson Ave.
+#             Fax:   (757) 269-5800             Newport News, VA 23606
 #
 # Description:
+#    Makefile for VMM Prototype Library
 #
-# $Date$
-# $Rev$
 #
+BASENAME=vmmProto
+#
+# Uncomment DEBUG line, to include some debugging info ( -g and -Wall)
+DEBUG	?= 1
+QUIET	?= 1
+#
+ifeq ($(QUIET),1)
+        Q = @
+else
+        Q =
+endif
 
-CROSS_COMPILE		=
-CC			= $(CROSS_COMPILE)g++
+ARCH	?= $(shell uname -m)
+
+# Install Area
+INSTALL_PATH	?= .
+INSTALL_LIB	?= ${INSTALL_PATH}
+INSTALL_INC	?= ${INSTALL_PATH}
+
+# Check for CODA 3 environment
+ifdef CODA_VME
+
+INC_CODA	= -I${CODA_VME}/include
+LIB_CODA	= -L${CODA_VME_LIB}
+
+endif
+
+CC			= gcc
+ifeq ($(ARCH),i686)
+CC			+= -m32
+endif
 AR                      = ar
 RANLIB                  = ranlib
-CFLAGS			= -O2 -fno-exceptions -fPIC -I/usr/include\
-			-I.
-LINKLIBS		= -lrt
-PROGS			= petiroc_test
-HEADERS			= $(wildcard *.h)
-SRC			= ./petiroc_test.cc ./fpga_io.cc
-OBJS			= $(SRC:.C=.o)
+CFLAGS			= -L. ${LIB_CODA}
+INCS			= -I. ${INC_CODA}
 
-all: $(PROGS) $(HEADERS)
+LIBS			= lib${BASENAME}.a lib${BASENAME}.so
 
-clean distclean:
-	@rm -f $(PROGS) *~ *.o outlinkDef.{C,h}
+ifeq ($(DEBUG),1)
+CFLAGS			+= -Wall -Wno-unused -g
+else
+CFLAGS			+= -O2
+endif
+SRC			= fpga_io.c
+HDRS			= $(SRC:.c=.h)
+OBJ			= $(SRC:.c=.o)
+DEPS			= $(SRC:.c=.d)
 
-%.o:	%.C Makefile
-	@echo "Building $@"
-	$(CC) $(CFLAGS) \
-	-c $<
+all: echoarch ${LIBS}
 
-$(PROGS): $(OBJS) $(SRC) $(HEADERS) Makefile
-	@echo "Building $@"
-	$(CC) $(CFLAGS) -o $@ \
-	$(LINKLIBS) \
-	$(OBJS)
+%.o: %.c
+	@echo " CC     $@"
+	${Q}$(CC) $(CFLAGS) $(INCS) -c -o $@ $<
 
+%.so: $(SRC)
+	@echo " CC     $@"
+	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $<
 
-.PHONY: all clean distclean
+%.a: $(OBJ)
+	@echo " AR     $@"
+	${Q}$(AR) ru $@ $<
+	@echo " RANLIB $@"
+	${Q}$(RANLIB) $@
+
+install: $(LIBS)
+	@echo " CP     $<"
+	${Q}cp $(PWD)/$< $(INSTALL_LIB)/$<
+	@echo " CP     $(<:%.a=%.so)"
+	${Q}cp $(PWD)/$(<:%.a=%.so) $(INSTALL_LIB)/$(<:%.a=%.so)
+	@echo " CP     ${HDRS}"
+	${Q}cp ${HDRS} $(INSTALL_INC)
+
+%.d: %.c
+	@echo " DEP    $@"
+	@set -e; rm -f $@; \
+	$(CC) -MM -shared $(INCS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+-include $(DEPS)
+
+clean:
+	@echo " CLEAN"
+	${Q}rm -f ${OBJ} ${LIBS} ${DEPS}
+
+echoarch:
+	@echo "Make for $(OS)-$(ARCH)"
+
+.PHONY: clean echoarch
