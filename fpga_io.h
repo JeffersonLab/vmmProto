@@ -1,5 +1,25 @@
 #ifndef FPGA_IO_H
 #define FPGA_IO_H
+/**
+ * @copyright Copyright 2022, Jefferson Science Associates, LLC.
+ *            Subject to the terms in the LICENSE file found in the
+ *            top-level directory.
+ *
+ * @author    Ben Raydo
+ *            braydo@jlab.org                   Jefferson Lab, MS-12B3
+ *            Phone: (757) 269-7317             12000 Jefferson Ave.
+ *            Fax:   (757) 269-5800             Newport News, VA 23606
+ *
+ * @author    Bryan Moffit
+ *            moffit@jlab.org                   Jefferson Lab, MS-12B3
+ *            Phone: (757) 269-5660             12000 Jefferson Ave.
+ *            Fax:   (757) 269-5800             Newport News, VA 23606
+ *
+ *
+ * @file      fpga_io.h
+ * @brief     Header for library for socket communcation with FPGAs
+ *
+ */
 
 #pragma pack(push,4)
 typedef struct
@@ -242,7 +262,7 @@ int32_t  fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf);
 int32_t open_register_socket(int32_t id);
 int32_t open_event_socket(int32_t id);
 int32_t close_register_socket(int32_t id);
-void close_event_socket(int32_t id);
+int32_t close_event_socket(int32_t id);
 int32_t read_event_socket(int32_t id, int *buf, int nwords_max);
 
 #endif

@@ -1,3 +1,24 @@
+/**
+ * @copyright Copyright 2022, Jefferson Science Associates, LLC.
+ *            Subject to the terms in the LICENSE file found in the
+ *            top-level directory.
+ *
+ * @author    Ben Raydo
+ *            braydo@jlab.org                   Jefferson Lab, MS-12B3
+ *            Phone: (757) 269-7317             12000 Jefferson Ave.
+ *            Fax:   (757) 269-5800             Newport News, VA 23606
+ *
+ * @author    Bryan Moffit
+ *            moffit@jlab.org                   Jefferson Lab, MS-12B3
+ *            Phone: (757) 269-5660             12000 Jefferson Ave.
+ *            Fax:   (757) 269-5800             Newport News, VA 23606
+ *
+ *
+ * @file      fpga_io.c
+ * @brief     Library for socket communcation with FPGAs
+ *
+ */
+
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -129,6 +150,14 @@ typedef struct
   int data[1];
 } read_rsp_struct;
 
+/**
+ * @brief Write a 32bit value to an address for specified FPGA
+ * @details Write a 32bit value to an address for specified FPGA
+ * @param[in] id FPGA identifier
+ * @param[out] addr FPGA address to write
+ * @param[in] val value to write
+ * @return 0 if successful, otherwise -1;
+ */
 int32_t
 fpga_write32(int32_t id, void *addr, int val)
 {
@@ -150,6 +179,13 @@ fpga_write32(int32_t id, void *addr, int val)
   return 0;
 }
 
+/**
+ * @brief Read a 32bit value from an address for specified FPGA
+ * @details  Read a 32bit value from an address for specified FPGA
+ * @param[in] id FPGA identifier
+ * @param[out] addr FPGA address to read
+ * @return 32bit value from FPGA, otherwise -1;
+ */
 uint32_t
 fpga_read32(int32_t id, void *addr)
 {
@@ -178,6 +214,15 @@ fpga_read32(int32_t id, void *addr)
   return rs_rsp.data[0];
 }
 
+/**
+ * @brief Read 32bit vallues from a range of addresses for specified FPGA
+ * @details Read 32bit vallues from a range of addresses for specified FPGA
+ * @param[in] id FPGA identifier
+ * @param[in] n Number of addresses to increments from addr
+ * @param[out] addr Starting FPGA address
+ * @param[out] buf Pointer to buffer where read values will be stored
+ * @return 0 if successful, otherwise -1
+ */
 int32_t
 fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf)
 {
@@ -212,6 +257,12 @@ fpga_read32_n(int32_t id, int32_t n, void *addr, uint32_t *buf)
   return 0;
 }
 
+/**
+ * @brief Open socket to specified FPGA registers
+ * @details Open socket to specified FPGA registers
+ * @param[in] id FPGA idenitifier
+ * @return 0 if successful, otherwise -1
+ */
 int32_t
 open_register_socket(int32_t id)
 {
@@ -267,6 +318,12 @@ open_register_socket(int32_t id)
   return 0;
 }
 
+/**
+ * @brief Close socket to specified FPGA registers
+ * @details Close socket to specified FPGA registers
+ * @param[in] id FPGA identifier
+ * @return 0 if successful, otherwise -1
+ */
 int32_t
 close_register_socket(int32_t id)
 {
@@ -286,6 +343,12 @@ close_register_socket(int32_t id)
 
 
 
+/**
+ * @brief Open socket to specified FPGA event data
+ * @details Open socket to specified FPGA event data
+ * @param[in] id FPGA identifier
+ * @return 0 if successful, otherwise -1
+ */
 int32_t
 open_event_socket(int32_t id)
 {
@@ -323,16 +386,33 @@ open_event_socket(int32_t id)
   return 0;
 }
 
-void
+/**
+ * @brief Close socket to specified FPGA event data
+ * @details Close socket to specified FPGA event data
+ * @param[in] id FPGA identifier
+ * @return 0 if successful, otherwise -1
+ */
+int32_t
 close_event_socket(int32_t id)
 {
+  CHECKID;
   if(pFPGAIO[id].sockfd_event)
     {
       close(pFPGAIO[id].sockfd_event);
       pFPGAIO[id].sockfd_event = 0;
     }
+
+  return 0;
 }
 
+/**
+ * @brief Read from specified FPGA event data socket
+ * @details Read from specified FPGA event data socket
+ * @param[in] id FPGA identifier
+ * @param[out] buf Pointer to buffer where event data will be stored
+ * @param[in] nwords_max The max of nwords allowed to transfer to buf
+ * @return Number of words added to buffer, if successful.  Otherwise -1
+ */
 int32_t
 read_event_socket(int32_t id, int *buf, int32_t nwords_max)
 {
