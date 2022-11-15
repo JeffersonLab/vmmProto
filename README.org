@@ -50,7 +50,7 @@ VMM Prototype Library
   uint32_t boardID;
   if(fpga_id > -1)
     {
-      boardID = fpga_read32(fpga_id, , &pFPGA_regs->Clk.BoardId);
+      boardID = fpga_read32(fpga_id, &pFPGA_regs->Clk.BoardId);
     }
 #+end_src  
 
