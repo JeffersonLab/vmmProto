@@ -19,8 +19,9 @@ VMM Prototype Library
     cd test
     make
   #+end_src
-- execute
+- execute (e.g. =bash=)
   #+begin_src shell
+    export LD_LIBRARY_PATH=..:${LD_LIBRARY_PATH}
     ./vmmPrototypeStatus <ip address> <register port>
   #+end_src
 

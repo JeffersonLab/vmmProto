@@ -254,6 +254,7 @@ extern FPGA_regs *pFPGA_regs;
 #define FPGA_IP_ADDR          "192.168.0.20"
 #define FPGA_PORT             6102
 
+int32_t fpga_setdebug(int32_t debug);
 int32_t fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port);
 
 int32_t  fpga_write32(int32_t id, void *addr, int val);

@@ -64,12 +64,21 @@ int32_t nFPGAIO = 0;
 FPGA_regs *pFPGA_regs = (FPGA_regs *) 0x0;
 
 int32_t fpga_io_debug = 1;
-#define FPGAIO_DBG(format, ...) if(fpga_io_debug==1){{printf("%s: ",__func__); printf(format, ## __VA_ARGS__);}}
+int32_t
+fpga_setdebug(int32_t debug)
+{
+  fpga_io_debug = (debug) ? 1 : 0;
+  return fpga_io_debug;
+}
+
+#define FPGAIO_DBG(format, ...) if(fpga_io_debug==1){{printf("%s: DBG: ",__func__); printf(format, ## __VA_ARGS__);}}
 #define FPGAIO_ERR(format, ...) {fprintf(stderr, "%s: ERROR: ",__func__); fprintf(stderr, format, ## __VA_ARGS__);}
 
 #define CHECKID {							\
-    if((id != pFPGAIO[id].id) ||(pFPGAIO[id].active != FPGAIO_ACTIVE))	\
-      FPGAIO_ERR("Invalid FPGA ID (%d)\n", id);				\
+  if((id != pFPGAIO[id].id) ||(pFPGAIO[id].active != FPGAIO_ACTIVE)){	\
+    FPGAIO_ERR("Invalid FPGA ID (%d)\n", id);				\
+    return -1;								\
+  }									\
   }
 
 /**
@@ -83,7 +92,7 @@ int32_t
 fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port)
 {
   int32_t rval = -1;
-  int32_t id = nFPGAIO+1;
+  int32_t id = nFPGAIO; /* this is the next available id */
 
   /* Check to be sure there's room in the array for a new one */
   if(id >= FPGAIO_MAX)
@@ -116,7 +125,7 @@ fpga_init(const char ip[16], uint16_t reg_port, uint16_t event_port)
   if(fpga_io_debug == 1)
     {
       uint32_t val;
-      val = fpga_read32(id, &pFPGA_regs->Clk.BoardId);
+      val = fpga_read32(pFPGAIO[id].id, &pFPGA_regs->Clk.BoardId);
       FPGAIO_DBG("BoardId = 0x%08X\n", val);
     }
 
@@ -298,18 +307,15 @@ open_register_socket(int32_t id)
       return -1;
     }
 
-  if(fpga_io_debug==1)
-    {
-      FPGAIO_DBG("write\n");
-      /* Send endian test header */
-      int n, val;
-      val = 0x12345678;
-      write(pFPGAIO[id].sockfd_reg, &val, 4);
+  FPGAIO_DBG("write\n");
+  /* Send endian test header */
+  int n, val;
+  val = 0x12345678;
+  write(pFPGAIO[id].sockfd_reg, &val, 4);
 
-      val = 0;
-      n = read(pFPGAIO[id].sockfd_reg, &val, 4);
-      FPGAIO_DBG(" n = %d, val = 0x%08x\n", n, val);
-    }
+  val = 0;
+  n = read(pFPGAIO[id].sockfd_reg, &val, 4);
+  FPGAIO_DBG(" n = %d, val = 0x%08x\n", n, val);
 
   /* Set connection as active */
   pFPGAIO[id].active = FPGAIO_ACTIVE;
